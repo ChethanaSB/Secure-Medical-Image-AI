@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedScan AI — Image Viewer</title>
+  <meta name="description" content="3D interactive medical image viewer with AI diagnostic report.">
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- Three.js import map (ES modules) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three":          "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+      "three/addons/":  "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <!-- Markdown renderer for Claude report -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body class="viewer-root">
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-brand">
+      <div class="nav-icon">🔬</div>
+      <div>
+        <div class="nav-title">MedScan AI</div>
+        <div class="nav-subtitle">Image Viewer</div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <a href="upload.html" class="btn btn-secondary btn-sm">← New Upload</a>
+      <div class="nav-user">
+        <div class="nav-avatar" id="nav-avatar">?</div>
+        <div>
+          <div class="nav-user-name" id="nav-username">—</div>
+          <div class="nav-user-role" id="nav-role">—</div>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <!-- Main layout -->
+  <div class="viewer-layout">
+
+    <!-- ── LEFT: Three.js canvas ──────────────────────────── -->
+    <div class="canvas-panel">
+
+      <!-- Loading overlay -->
+      <div class="loading-overlay" id="canvas-loading">
+        <div class="spinner spinner-lg"></div>
+        <div class="loading-text" id="canvas-loading-text">Decrypting image…</div>
+      </div>
+
+      <!-- Canvas -->
+      <canvas id="three-canvas"></canvas>
+
+      <!-- Toolbar (floating strip) -->
+      <div class="canvas-toolbar">
+        <button class="tool-btn" id="btn-reset"      title="Reset view (R)">⟳</button>
+        <div    class="tool-sep"></div>
+        <button class="tool-btn" id="btn-zoom-in"    title="Zoom In (+)">＋</button>
+        <button class="tool-btn" id="btn-zoom-out"   title="Zoom Out (−)">－</button>
+        <div    class="tool-sep"></div>
+        <button class="tool-btn" id="btn-wireframe"  title="Wireframe mode (W)">⚌</button>
+        <button class="tool-btn on" id="btn-autorotate" title="Toggle auto-rotate (A)">↻</button>
+      </div>
+
+      <!-- HUD bottom-left -->
+      <div class="canvas-hud" id="canvas-hud">
+        DRAG rotate · SCROLL zoom · RIGHT-DRAG pan
+      </div>
+
+    </div><!-- /canvas-panel -->
+
+    <!-- ── RIGHT: Analysis panel ─────────────────────────── -->
+    <div class="right-panel">
+      <div class="right-panel-inner" id="panel-inner">
+
+        <!-- Loading state -->
+        <div id="panel-loading" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:18px;">
+          <div class="spinner spinner-lg"></div>
+          <div class="loading-text">Running AI analysis…</div>
+        </div>
+
+        <!-- Error state -->
+        <div id="panel-error" class="hidden" style="padding:20px 0;">
+          <div class="alert alert-danger">
+            <span>⚠</span>
+            <span id="panel-err-msg">An error occurred.</span>
+          </div>
+          <div style="margin-top:16px; text-align:center;">
+            <a href="upload.html" class="btn btn-secondary btn-sm">← Back to Upload</a>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div id="panel-content" class="hidden" style="display:flex;flex-direction:column;gap:10px;">
+
+          <!-- ① Image info strip -->
+          <div class="info-strip anim-up">
+            <div>
+              <div class="text-xs text-muted" style="margin-bottom:3px;">Image ID</div>
+              <div class="info-strip-id mono" id="panel-image-id">#—</div>
+            </div>
+            <span class="type-chip" id="panel-image-type">—</span>
+          </div>
+
+          <!-- ② Integrity badge -->
+          <div class="psec anim-up anim-d1">
+            <div class="psec-head">
+              <span class="psec-title">Data Integrity</span>
+              <span class="badge badge-info" style="font-size:9px;">SHA-256</span>
+            </div>
+            <div class="psec-body row-between" style="flex-wrap:wrap; gap:8px;">
+              <div id="integrity-badge" class="badge badge-info">
+                <span class="badge-dot"></span>Verifying…
+              </div>
+              <span class="mono text-xs text-muted" id="cached-chip" style="display:none;">
+                ⚡ CACHED
+              </span>
+            </div>
+          </div>
+
+          <!-- ③ Prediction -->
+          <div class="psec anim-up anim-d2">
+            <div class="psec-head">
+              <span class="psec-title">AI Prediction</span>
+              <span id="cached-chip" class="badge badge-info hidden" style="font-size:9px;">CACHED</span>
+            </div>
+            <div class="psec-body">
+              <div class="confidence-wrap">
+                <div class="confidence-top">
+                  <div class="conf-label" id="pred-label">—</div>
+                  <div class="conf-pct"   id="pred-pct">—</div>
+                </div>
+                <div class="conf-track">
+                  <div class="conf-fill" id="conf-fill"></div>
+                </div>
+                <div class="row gap-4 mt-8">
+                  <span class="text-xs text-muted">Model:</span>
+                  <span class="text-xs mono" id="pred-model" style="color:var(--text-secondary); word-break:break-all;">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ④ Re-run button -->
+          <button class="btn btn-ghost w-full anim-up anim-d3" id="rerun-btn" onclick="rerunPrediction()">
+            🔄&nbsp;&nbsp;Re-run Prediction
+          </button>
+
+          <!-- ⑤ Clinical Report -->
+          <div class="psec anim-up anim-d4">
+            <div class="psec-head">
+              <span class="psec-title">Clinical Report</span>
+              <span class="badge badge-info" style="font-size:9px;">Groq AI</span>
+            </div>
+            <div class="psec-body">
+              <div class="report-body" id="clinical-report">
+                <em style="color:var(--text-muted);">Loading report…</em>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /panel-content -->
+
+      </div><!-- /right-panel-inner -->
+    </div><!-- /right-panel -->
+
+  </div><!-- /viewer-layout -->
+
+  <!-- Viewer logic (ES module) -->
+  <script type="module" src="js/viewer.js"></script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedScan AI — Secure Login</title>
+  <meta name="description" content="Secure login portal for MedScan AI Medical Imaging System.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-grid">
+
+  <div class="login-root">
+    <div class="login-outer">
+
+      <!-- Header -->
+      <div class="login-head anim-up">
+        <div class="login-logo">🔬</div>
+        <h1 class="login-title">MedScan AI</h1>
+        <p class="login-tagline">Secure Medical Imaging &amp; AI Diagnostic System</p>
+      </div>
+
+      <!-- Card -->
+      <div class="card login-card anim-up" style="animation-delay:.08s">
+        <div class="card-header" style="margin-bottom:24px; border-bottom:none; padding:0;">
+          <div class="card-title">
+            <span class="card-title-dot"></span>
+            Authenticate
+          </div>
+        </div>
+
+        <form id="login-form" autocomplete="on">
+          <div class="form-group">
+            <label class="form-label" for="username">Username</label>
+            <input
+              type="text" id="username" class="form-input"
+              placeholder="Enter your username"
+              autocomplete="username" required
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="password">Password</label>
+            <input
+              type="password" id="password" class="form-input"
+              placeholder="Enter your password"
+              autocomplete="current-password" required
+            />
+          </div>
+
+          <!-- Error -->
+          <div id="err-box" class="alert alert-danger hidden" style="margin-bottom:16px;">
+            <span>⚠</span>
+            <span id="err-text"></span>
+          </div>
+
+          <button type="submit" id="login-btn" class="btn btn-primary btn-lg btn-block">
+            <span id="btn-text">Sign In</span>
+            <span id="btn-spinner" class="spinner hidden"></span>
+          </button>
+        </form>
+      </div>
+
+      <!-- Security strip -->
+      <div class="login-security anim-up" style="animation-delay:.18s">
+        <div class="login-security-item">
+          <span class="login-security-dot"></span>
+          AES-256 Encrypted
+        </div>
+        <div class="login-security-item">
+          <span class="login-security-dot"></span>
+          JWT Auth
+        </div>
+        <div class="login-security-item">
+          <span class="login-security-dot"></span>
+          bcrypt Passwords
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="js/auth.js"></script>
+</body>
+</html>

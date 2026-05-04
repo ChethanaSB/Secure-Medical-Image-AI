@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedScan AI — Admin Dashboard</title>
+  <meta name="description" content="Admin audit log dashboard for MedScan AI Medical Imaging System.">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-grid page-wrap">
+
+  <!-- Navbar -->
+  <nav class="nav">
+    <div class="nav-brand">
+      <div class="nav-icon">🔬</div>
+      <div>
+        <div class="nav-title">MedScan AI</div>
+        <div class="nav-subtitle">Admin Dashboard</div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <a href="upload.html"   class="btn btn-secondary btn-sm">Upload</a>
+      <a href="dashboard.html" class="btn btn-ghost btn-sm">Dashboard</a>
+      <div class="nav-user">
+        <div class="nav-avatar" id="nav-avatar">?</div>
+        <div>
+          <div class="nav-user-name" id="nav-username">—</div>
+          <div class="nav-user-role" id="nav-role">—</div>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="page-inner" style="max-width:1280px;">
+
+    <div class="row-between" style="margin-bottom:28px;">
+      <div>
+        <h1 class="page-heading anim-up">Audit Dashboard</h1>
+        <p class="page-sub anim-up" style="animation-delay:.04s;">Real-time security and activity monitoring</p>
+      </div>
+      <div class="row gap-8">
+        <button class="btn btn-secondary btn-sm" onclick="refreshAll()">🔄 Refresh</button>
+        <a id="export-btn" href="#" class="btn btn-ghost btn-sm" onclick="exportCSV(event)">⬇ Export CSV</a>
+      </div>
+    </div>
+
+    <!-- ── Stats Cards ─────────────────────────────────── -->
+    <div class="stats-grid">
+      <div class="stat-card anim-up">
+        <div class="stat-icon">📋</div>
+        <div class="stat-body">
+          <div class="stat-value" id="stat-total">—</div>
+          <div class="stat-label">Total Events</div>
+        </div>
+      </div>
+      <div class="stat-card anim-up anim-d1">
+        <div class="stat-icon">📅</div>
+        <div class="stat-body">
+          <div class="stat-value" id="stat-today">—</div>
+          <div class="stat-label">Today's Events</div>
+        </div>
+      </div>
+      <div class="stat-card anim-up anim-d2">
+        <div class="stat-icon">👤</div>
+        <div class="stat-body">
+          <div class="stat-value" id="stat-users">—</div>
+          <div class="stat-label">Active Users (24 h)</div>
+        </div>
+      </div>
+      <div class="stat-card stat-card-danger anim-up anim-d3">
+        <div class="stat-icon">🚨</div>
+        <div class="stat-body">
+          <div class="stat-value" id="stat-alerts">—</div>
+          <div class="stat-label">Integrity Alerts</div>
+        </div>
+      </div>
+      <div class="stat-card anim-up anim-d4">
+        <div class="stat-icon">🖼️</div>
+        <div class="stat-body">
+          <div class="stat-value" id="stat-images">—</div>
+          <div class="stat-label">Total Images</div>
+        </div>
+      </div>
+      <div class="stat-card anim-up" style="animation-delay:.3s">
+        <div class="stat-icon">🗓️</div>
+        <div class="stat-body">
+          <div class="stat-value" id="stat-week">—</div>
+          <div class="stat-label">This Week</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Chart + Filters row ──────────────────────────── -->
+    <div class="dash-row">
+
+      <!-- Doughnut chart -->
+      <div class="card dash-chart-card anim-up" style="animation-delay:.1s">
+        <div class="card-header">
+          <div class="card-title"><span class="card-title-dot"></span>Action Distribution</div>
+          <span class="badge badge-info text-xs">All Time</span>
+        </div>
+        <div class="card-body" style="display:flex;align-items:center;justify-content:center;min-height:220px;">
+          <div style="position:relative;width:220px;height:220px;">
+            <canvas id="action-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="card dash-filter-card anim-up" style="animation-delay:.15s">
+        <div class="card-header">
+          <div class="card-title"><span class="card-title-dot"></span>Filter Logs</div>
+        </div>
+        <div class="card-body">
+          <div class="filter-grid">
+            <div class="form-group">
+              <label class="form-label" for="f-action">Action Type</label>
+              <select id="f-action" class="form-input">
+                <option value="">All Actions</option>
+                <option value="login_success">login_success</option>
+                <option value="login_failed">login_failed</option>
+                <option value="login_locked">login_locked</option>
+                <option value="user_registered">user_registered</option>
+                <option value="user_deleted">user_deleted</option>
+                <option value="image_upload">image_upload</option>
+                <option value="image_upload_failed">image_upload_failed</option>
+                <option value="image_view">image_view</option>
+                <option value="image_integrity_failure">image_integrity_failure</option>
+                <option value="image_decrypt_failure">image_decrypt_failure</option>
+                <option value="hf_analysis_failure">hf_analysis_failure</option>
+                <option value="gemini_report_failure">gemini_report_failure</option>
+                <option value="prediction_created">prediction_created</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="f-user">User ID</label>
+              <input type="number" id="f-user" class="form-input" placeholder="e.g. 1" min="1">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="f-from">Date From</label>
+              <input type="datetime-local" id="f-from" class="form-input">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="f-to">Date To</label>
+              <input type="datetime-local" id="f-to" class="form-input">
+            </div>
+          </div>
+          <div class="row gap-8" style="margin-top:4px;">
+            <button class="btn btn-primary" style="flex:1" onclick="applyFilters()">Apply Filters</button>
+            <button class="btn btn-secondary" onclick="clearFilters()">Clear</button>
+          </div>
+          <div id="filter-alert" class="hidden" style="margin-top:12px;"></div>
+        </div>
+      </div>
+
+    </div><!-- /dash-row -->
+
+    <!-- ── Audit Log Table ───────────────────────────────── -->
+    <div class="card anim-up" style="animation-delay:.2s; margin-top:0;">
+      <div class="card-header">
+        <div class="card-title"><span class="card-title-dot"></span>Audit Log</div>
+        <div class="row gap-8">
+          <span class="badge badge-info" id="total-badge">0 records</span>
+        </div>
+      </div>
+
+      <!-- Table wrapper -->
+      <div style="position:relative; min-height:200px;">
+        <div class="loading-overlay" id="table-loading" style="border-radius:0 0 var(--r-lg) var(--r-lg);">
+          <div class="spinner spinner-lg"></div>
+          <div class="loading-text">Loading audit logs…</div>
+        </div>
+
+        <div class="table-wrap" id="table-wrap">
+          <table class="log-table" id="log-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Target</th>
+                <th>IP Address</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="log-body">
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Empty state -->
+        <div id="empty-state" class="hidden" style="padding:48px;text-align:center;">
+          <div style="font-size:40px;margin-bottom:12px;">🔍</div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:6px;">No logs found</div>
+          <div class="text-muted text-sm">Try adjusting your filters or upload/view an image to generate events.</div>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      <div class="dash-pagination" id="pagination">
+        <button class="btn btn-secondary btn-sm" id="btn-prev" onclick="goPrev()" disabled>← Prev</button>
+        <span class="pager-info" id="pager-info">Page 1 of 1</span>
+        <button class="btn btn-secondary btn-sm" id="btn-next" onclick="goNext()" disabled>Next →</button>
+      </div>
+    </div>
+
+  </div><!-- /page-inner -->
+
+  <script src="js/api.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
