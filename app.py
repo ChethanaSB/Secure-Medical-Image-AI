@@ -125,14 +125,16 @@ def seed_admin(app: Flask):
 
 
 # ------------------------------------------------------------------
-# Entry point
+# Entry point / Gunicorn integration
 # ------------------------------------------------------------------
+# This global 'app' object is used by gunicorn (e.g. gunicorn app:app)
+app = create_app()
+
 if __name__ == "__main__":
-    flask_app = create_app()
-    seed_admin(flask_app)
+    seed_admin(app)
 
     debug_mode = os.getenv("FLASK_DEBUG", "true").lower() == "true"
     port = int(os.getenv("PORT", 5000))
 
     print(f"[APP] Starting Secure Medical Image API on port {port} (debug={debug_mode})")
-    flask_app.run(host="0.0.0.0", port=port, debug=debug_mode)
+    app.run(host="0.0.0.0", port=port, debug=debug_mode)
