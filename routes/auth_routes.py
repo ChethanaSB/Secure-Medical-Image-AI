@@ -1,33 +1,21 @@
 """
-auth_routes.py - Authentication Blueprint.
+auth_routes.py - Authentication Blueprint (Supabase-backed).
 
 Endpoints:
-  POST /auth/register  — Admin-only: create a new user account
-  POST /auth/login     — Public: authenticate and receive a JWT
+  POST /auth/register  — Public: create a new user account (name, email, password, phone)
+  POST /auth/login     — Public: authenticate and receive a Supabase JWT
   GET  /auth/me        — Protected: return current user info
   GET  /auth/users     — Admin-only: list all users
 """
 
 from flask import Blueprint, request, jsonify, g
 
-from models.user_model import User
-from utils.db import db
-from utils.security import (
-    hash_password,
-    verify_password,
-    generate_token,
-    jwt_required,
-    roles_required,
-    get_client_ip,
-    is_ip_locked,
-    record_failed_attempt,
-    reset_attempts,
+from utils.supabase_auth import (
+    supabase_sign_up,
+    supabase_sign_in,
+    supabase_list_users,
 )
-from utils.audit import (
-    write_audit,
-    LOGIN_SUCCESS, LOGIN_FAILED, LOGIN_LOCKED,
-    USER_REGISTERED, USER_DELETED,
-)
+from utils.security import jwt_required, roles_required
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -38,61 +26,54 @@ VALID_ROLES = {"admin", "doctor", "radiologist"}
 
 
 # ---------------------------------------------------------------------------
-# POST /auth/register  (Admin only)
+# POST /auth/register  (Public — self-registration)
 # ---------------------------------------------------------------------------
 @auth_bp.route("/register", methods=["POST"])
-@jwt_required
-@roles_required("admin")
 def register():
     """
     Register a new user.
-    Requires: Bearer JWT with role=admin.
-    Body (JSON): { "username": str, "password": str, "role": str }
+    Body (JSON): { "name": str, "email": str, "password": str, "phone": str, "role": str }
     """
     data = request.get_json(silent=True) or {}
 
-    username = (data.get("username") or "").strip()
+    name = (data.get("name") or "").strip()
+    email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
-    role = (data.get("role") or "").strip().lower()
+    phone = (data.get("phone") or "").strip()
+    role = (data.get("role") or "doctor").strip().lower()
 
     # --- Validation ---
-    if not username or not password or not role:
-        return jsonify({"error": "username, password, and role are required."}), 400
+    if not name:
+        return jsonify({"error": "Name is required."}), 400
 
-    if len(username) < 3 or len(username) > 80:
-        return jsonify({"error": "username must be 3–80 characters."}), 400
+    if not email:
+        return jsonify({"error": "Email is required."}), 400
 
-    if len(password) < 8:
-        return jsonify({"error": "password must be at least 8 characters."}), 400
+    if not password:
+        return jsonify({"error": "Password is required."}), 400
+
+    if len(name) < 2 or len(name) > 80:
+        return jsonify({"error": "Name must be 2–80 characters."}), 400
+
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters."}), 400
+
+    if phone and (len(phone) < 10 or len(phone) > 15):
+        return jsonify({"error": "Phone number must be 10–15 digits."}), 400
 
     if role not in VALID_ROLES:
-        return jsonify({"error": f"role must be one of: {', '.join(VALID_ROLES)}."}), 400
+        return jsonify({"error": f"Role must be one of: {', '.join(VALID_ROLES)}."}), 400
 
-    if User.query.filter_by(username=username).first():
-        return jsonify({"error": "Username already exists."}), 409
+    # --- Create user via Supabase ---
+    result = supabase_sign_up(email, password, name, phone, role)
 
-    # --- Create user ---
-    new_user = User(
-        username=username,
-        password_hash=hash_password(password),
-        role=role,
-    )
-    db.session.add(new_user)
-    db.session.flush()   # get new_user.user_id before commit
-
-    write_audit(
-        USER_REGISTERED,
-        user_id=g.current_user["id"],
-        target_type="user",
-        target_id=new_user.user_id,
-        details={"new_username": username, "role": role},
-        ip=get_client_ip(),
-    )
-    db.session.commit()
+    if not result["success"]:
+        return jsonify({"error": result["error"]}), 400
 
     return jsonify({
-        "message": "User registered successfully.",
-        "user": new_user.to_dict(),
+        "message": "Registration successful! You can now sign in.",
+        "user": result["user"],
+        "session": result.get("session", {}),
     }), 201
 
 
@@ -102,60 +83,26 @@ def register():
 @auth_bp.route("/login", methods=["POST"])
 def login():
     """
-    Authenticate a user and return a signed JWT.
-    Applies IP-based brute-force protection.
-    Body (JSON): { "username": str, "password": str }
+    Authenticate a user and return a Supabase JWT.
+    Body (JSON): { "email": str, "password": str }
     """
-    ip = get_client_ip()
-
-    # --- Rate-limit check ---
-    locked, lock_msg = is_ip_locked(ip)
-    if locked:
-        write_audit(LOGIN_LOCKED, ip=ip,
-                    details={"attempted_username": (data := request.get_json(silent=True) or {}).get("username", "")})
-        db.session.commit()
-        return jsonify({"error": lock_msg}), 429
-
     data = request.get_json(silent=True) or {}
-    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
 
-    if not username or not password:
-        return jsonify({"error": "username and password are required."}), 400
+    if not email or not password:
+        return jsonify({"error": "Email and password are required."}), 400
 
-    user = User.query.filter_by(username=username).first()
+    result = supabase_sign_in(email, password)
 
-    # Use a constant-time check to prevent timing attacks
-    if not user or not verify_password(password, user.password_hash):
-        record_failed_attempt(ip)
-        write_audit(LOGIN_FAILED, ip=ip,
-                    details={"attempted_username": username,
-                             "reason": "invalid_credentials"})
-        db.session.commit()
-        # Re-check to inform user if they just got locked
-        locked, lock_msg = is_ip_locked(ip)
-        if locked:
-            return jsonify({"error": lock_msg}), 429
-        return jsonify({"error": "Invalid username or password."}), 401
-
-    # --- Successful login ---
-    reset_attempts(ip)
-    token = generate_token(user.user_id, user.role)
-
-    write_audit(
-        LOGIN_SUCCESS,
-        user_id=user.user_id,
-        target_type="user",
-        target_id=user.user_id,
-        details={"username": user.username, "role": user.role},
-        ip=ip,
-    )
-    db.session.commit()
+    if not result["success"]:
+        return jsonify({"error": result["error"]}), 401
 
     return jsonify({
         "message": "Login successful.",
-        "token": token,
-        "user": user.to_dict(),
+        "token": result["session"]["access_token"],
+        "user": result["user"],
+        "session": result["session"],
     }), 200
 
 
@@ -166,10 +113,7 @@ def login():
 @jwt_required
 def me():
     """Return the currently authenticated user's profile."""
-    user = db.session.get(User, g.current_user["id"])
-    if not user:
-        return jsonify({"error": "User not found."}), 404
-    return jsonify({"user": user.to_dict()}), 200
+    return jsonify({"user": g.current_user}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -179,47 +123,10 @@ def me():
 @jwt_required
 @roles_required("admin")
 def list_users():
-    """Return a paginated list of all registered users."""
-    page = request.args.get("page", 1, type=int)
-    per_page = min(request.args.get("per_page", 20, type=int), 100)
-
-    pagination = User.query.order_by(User.created_at.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
-
+    """Return a list of all registered users."""
+    token = getattr(g, "access_token", "")
+    users = supabase_list_users(token)
     return jsonify({
-        "total": pagination.total,
-        "page": pagination.page,
-        "pages": pagination.pages,
-        "users": [u.to_dict() for u in pagination.items],
+        "total": len(users),
+        "users": users,
     }), 200
-
-
-# ---------------------------------------------------------------------------
-# DELETE /auth/users/<user_id>  (Admin only)
-# ---------------------------------------------------------------------------
-@auth_bp.route("/users/<int:user_id>", methods=["DELETE"])
-@jwt_required
-@roles_required("admin")
-def delete_user(user_id: int):
-    """Delete a user by ID. Admins cannot delete themselves."""
-    if g.current_user["id"] == user_id:
-        return jsonify({"error": "You cannot delete your own account."}), 400
-
-    user = db.session.get(User, user_id)
-    if not user:
-        return jsonify({"error": "User not found."}), 404
-
-    username = user.username
-    db.session.delete(user)
-
-    write_audit(
-        USER_DELETED,
-        user_id=g.current_user["id"],
-        target_type="user",
-        target_id=user_id,
-        details={"deleted_username": username},
-        ip=get_client_ip(),
-    )
-    db.session.commit()
-    return jsonify({"message": f"User '{username}' deleted successfully."}), 200

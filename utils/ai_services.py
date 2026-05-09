@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
-_HF_API_BASE = "https://api-inference.huggingface.co/models"
+_HF_API_BASE = "https://router.huggingface.co/hf-inference/models"
 _DEFAULT_HF_MODEL = (
-    "nickmuchi/vit-base-patch16-224-finetuned-chest-xray-pneumonia"
+    "google/vit-base-patch16-224"
 )
 _DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
 

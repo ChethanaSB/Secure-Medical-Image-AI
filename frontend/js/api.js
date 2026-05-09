@@ -17,12 +17,13 @@ function requireAuth() {
 
 function populateNav() {
   const u = getUser();
-  if (!u.username) return;
+  const displayName = u.name || u.email;
+  if (!displayName) return;
   const avatar   = document.getElementById('nav-avatar');
   const nameEl   = document.getElementById('nav-username');
   const roleEl   = document.getElementById('nav-role');
-  if (avatar)  avatar.textContent  = u.username.charAt(0).toUpperCase();
-  if (nameEl)  nameEl.textContent  = u.username;
+  if (avatar)  avatar.textContent  = displayName.charAt(0).toUpperCase();
+  if (nameEl)  nameEl.textContent  = displayName;
   if (roleEl)  roleEl.textContent  = u.role;
 }
 

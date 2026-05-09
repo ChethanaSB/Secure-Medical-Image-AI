@@ -4,13 +4,168 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MedScan AI — Secure Login</title>
-  <meta name="description" content="Secure login portal for MedScan AI Medical Imaging System.">
+  <meta name="description" content="Secure login and registration portal for MedScan AI Medical Imaging System.">
   <link rel="stylesheet" href="css/styles.css">
+  <style>
+    /* ── Auth Tabs ───────────────────────────────── */
+    .auth-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 28px;
+      border-radius: var(--r-md);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: rgba(8, 18, 38, 0.6);
+    }
+    .auth-tab {
+      flex: 1;
+      padding: 12px 0;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: all var(--ease);
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      font-family: inherit;
+      position: relative;
+    }
+    .auth-tab:hover {
+      color: var(--text-secondary);
+      background: rgba(0, 212, 255, 0.04);
+    }
+    .auth-tab.active {
+      color: var(--accent);
+      background: rgba(0, 212, 255, 0.08);
+    }
+    .auth-tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 20%;
+      right: 20%;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px;
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    /* ── Form panels ────────────────────────────── */
+    .auth-panel {
+      display: none;
+      animation: fadeInUp 0.35s ease;
+    }
+    .auth-panel.active {
+      display: block;
+    }
+
+    /* ── Phone input row ────────────────────────── */
+    .phone-row {
+      display: flex;
+      gap: 8px;
+    }
+    .phone-prefix {
+      width: 72px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .phone-number {
+      flex: 1;
+    }
+
+    /* ── Role selector ──────────────────────────── */
+    .role-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .role-option {
+      padding: 10px 8px;
+      text-align: center;
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      cursor: pointer;
+      transition: all var(--ease);
+      background: rgba(8, 18, 38, 0.6);
+    }
+    .role-option:hover {
+      border-color: var(--accent);
+      background: rgba(0, 212, 255, 0.04);
+    }
+    .role-option.selected {
+      border-color: var(--accent);
+      background: rgba(0, 212, 255, 0.1);
+      box-shadow: 0 0 12px var(--accent-dim);
+    }
+    .role-option input[type="radio"] {
+      display: none;
+    }
+    .role-icon {
+      font-size: 20px;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .role-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .role-option.selected .role-label {
+      color: var(--accent);
+    }
+
+    /* ── Success alert ──────────────────────────── */
+    .alert-success-big {
+      background: var(--success-bg);
+      border: 1px solid rgba(0, 230, 118, 0.3);
+      color: #60dda8;
+      padding: 16px;
+      border-radius: var(--r-md);
+      text-align: center;
+      animation: fadeInUp 0.4s ease;
+    }
+    .alert-success-big .success-icon {
+      font-size: 36px;
+      display: block;
+      margin-bottom: 8px;
+    }
+    .alert-success-big .success-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .alert-success-big .success-sub {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    /* ── Password strength ──────────────────────── */
+    .pw-strength {
+      height: 3px;
+      border-radius: 3px;
+      background: rgba(0, 212, 255, 0.07);
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .pw-strength-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 3px;
+      transition: all 0.3s ease;
+    }
+    .pw-strength-fill.weak    { width: 33%; background: var(--danger); }
+    .pw-strength-fill.medium  { width: 66%; background: var(--warning); }
+    .pw-strength-fill.strong  { width: 100%; background: var(--success); }
+  </style>
 </head>
 <body class="bg-grid">
 
   <div class="login-root">
-    <div class="login-outer">
+    <div class="login-outer" style="max-width:460px;">
 
       <!-- Header -->
       <div class="login-head anim-up">
@@ -20,43 +175,150 @@
       </div>
 
       <!-- Card -->
-      <div class="card login-card anim-up" style="animation-delay:.08s">
-        <div class="card-header" style="margin-bottom:24px; border-bottom:none; padding:0;">
-          <div class="card-title">
-            <span class="card-title-dot"></span>
-            Authenticate
-          </div>
+      <div class="card login-card anim-up" style="animation-delay:.08s; padding: 28px 32px;">
+
+        <!-- Tabs -->
+        <div class="auth-tabs" id="auth-tabs">
+          <button class="auth-tab active" data-tab="login" id="tab-login">Sign In</button>
+          <button class="auth-tab" data-tab="register" id="tab-register">Register</button>
         </div>
 
-        <form id="login-form" autocomplete="on">
-          <div class="form-group">
-            <label class="form-label" for="username">Username</label>
-            <input
-              type="text" id="username" class="form-input"
-              placeholder="Enter your username"
-              autocomplete="username" required
-            />
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="password">Password</label>
-            <input
-              type="password" id="password" class="form-input"
-              placeholder="Enter your password"
-              autocomplete="current-password" required
-            />
+        <!-- ═══ LOGIN PANEL ═══ -->
+        <div class="auth-panel active" id="panel-login">
+          <form id="login-form" autocomplete="on">
+            <div class="form-group">
+              <label class="form-label" for="login-email">Email</label>
+              <input
+                type="email" id="login-email" class="form-input"
+                placeholder="you@hospital.com"
+                autocomplete="email" required
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="login-password">Password</label>
+              <input
+                type="password" id="login-password" class="form-input"
+                placeholder="Enter your password"
+                autocomplete="current-password" required
+              />
+            </div>
+
+            <!-- Error -->
+            <div id="login-err-box" class="alert alert-danger hidden" style="margin-bottom:16px;">
+              <span>⚠</span>
+              <span id="login-err-text"></span>
+            </div>
+
+            <button type="submit" id="login-btn" class="btn btn-primary btn-lg btn-block">
+              <span id="login-btn-text">Sign In</span>
+              <span id="login-btn-spinner" class="spinner hidden"></span>
+            </button>
+          </form>
+
+          <p style="text-align:center; margin-top:16px; font-size:12px; color:var(--text-muted);">
+            Don't have an account?
+            <a href="#" id="switch-to-register" style="color:var(--accent); font-weight:600;">Register here</a>
+          </p>
+        </div>
+
+        <!-- ═══ REGISTER PANEL ═══ -->
+        <div class="auth-panel" id="panel-register">
+          <div id="register-success" class="hidden">
+            <div class="alert-success-big">
+              <span class="success-icon">✅</span>
+              <div class="success-title">Registration Successful!</div>
+              <div class="success-sub">You can now sign in with your credentials</div>
+            </div>
+            <button class="btn btn-primary btn-lg btn-block" style="margin-top:16px;" id="go-to-login-btn">
+              Go to Sign In
+            </button>
           </div>
 
-          <!-- Error -->
-          <div id="err-box" class="alert alert-danger hidden" style="margin-bottom:16px;">
-            <span>⚠</span>
-            <span id="err-text"></span>
-          </div>
+          <form id="register-form" autocomplete="on">
+            <div class="form-group">
+              <label class="form-label" for="reg-name">Full Name</label>
+              <input
+                type="text" id="reg-name" class="form-input"
+                placeholder="Dr. John Doe"
+                autocomplete="name" required
+              />
+            </div>
 
-          <button type="submit" id="login-btn" class="btn btn-primary btn-lg btn-block">
-            <span id="btn-text">Sign In</span>
-            <span id="btn-spinner" class="spinner hidden"></span>
-          </button>
-        </form>
+            <div class="form-group">
+              <label class="form-label" for="reg-email">Email</label>
+              <input
+                type="email" id="reg-email" class="form-input"
+                placeholder="you@hospital.com"
+                autocomplete="email" required
+              />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="reg-phone">Phone Number</label>
+              <div class="phone-row">
+                <input
+                  type="text" id="reg-phone-prefix" class="form-input phone-prefix"
+                  value="+91" readonly
+                />
+                <input
+                  type="tel" id="reg-phone" class="form-input phone-number"
+                  placeholder="9876543210"
+                  autocomplete="tel" required
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="reg-password">Password</label>
+              <input
+                type="password" id="reg-password" class="form-input"
+                placeholder="Min 6 characters"
+                autocomplete="new-password" required
+              />
+              <div class="pw-strength">
+                <div class="pw-strength-fill" id="pw-strength-fill"></div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Role</label>
+              <div class="role-grid">
+                <label class="role-option selected" id="role-doctor">
+                  <input type="radio" name="role" value="doctor" checked />
+                  <span class="role-icon">🩺</span>
+                  <span class="role-label">Doctor</span>
+                </label>
+                <label class="role-option" id="role-radiologist">
+                  <input type="radio" name="role" value="radiologist" />
+                  <span class="role-icon">📡</span>
+                  <span class="role-label">Radiologist</span>
+                </label>
+                <label class="role-option" id="role-admin">
+                  <input type="radio" name="role" value="admin" />
+                  <span class="role-icon">🔑</span>
+                  <span class="role-label">Admin</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Error -->
+            <div id="reg-err-box" class="alert alert-danger hidden" style="margin-bottom:16px;">
+              <span>⚠</span>
+              <span id="reg-err-text"></span>
+            </div>
+
+            <button type="submit" id="reg-btn" class="btn btn-primary btn-lg btn-block">
+              <span id="reg-btn-text">Create Account</span>
+              <span id="reg-btn-spinner" class="spinner hidden"></span>
+            </button>
+          </form>
+
+          <p style="text-align:center; margin-top:16px; font-size:12px; color:var(--text-muted);">
+            Already have an account?
+            <a href="#" id="switch-to-login" style="color:var(--accent); font-weight:600;">Sign in</a>
+          </p>
+        </div>
+
       </div>
 
       <!-- Security strip -->
@@ -67,11 +329,11 @@
         </div>
         <div class="login-security-item">
           <span class="login-security-dot"></span>
-          JWT Auth
+          Supabase Auth
         </div>
         <div class="login-security-item">
           <span class="login-security-dot"></span>
-          bcrypt Passwords
+          Secure Tokens
         </div>
       </div>
 

@@ -4,8 +4,9 @@ user_model.py - SQLAlchemy model for the USER table.
 Columns:
   user_id       Integer, primary key, auto-increment
   username      String(80), unique, not null
-  password_hash String(255), not null  — stored as bcrypt hash
+  password_hash String(255), not null  — stored as bcrypt hash or 'supabase-managed'
   role          Enum('admin', 'doctor', 'radiologist'), not null
+  supabase_id   String(255), unique, nullable — Supabase Auth UUID
   created_at    DateTime, default = UTC now
 """
 
@@ -23,6 +24,7 @@ class User(db.Model):
         db.Enum("admin", "doctor", "radiologist", name="user_role_enum"),
         nullable=False,
     )
+    supabase_id = db.Column(db.String(255), unique=True, nullable=True)
     created_at = db.Column(
         db.DateTime,
         nullable=False,

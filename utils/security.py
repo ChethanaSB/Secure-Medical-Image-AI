@@ -1,13 +1,13 @@
 """
-security.py - Security utilities:
-  - Password hashing / verification via bcrypt
-  - JWT creation and decoding
-  - Login attempt rate-limiting (in-memory, per-IP)
+security.py - Security utilities (Supabase + local DB hybrid):
+  - Supabase JWT validation via /auth/v1/user
+  - Auto-sync Supabase user → local SQLite User record (FK compat)
+  - Password hashing / verification via bcrypt (kept for legacy seed)
   - Role-based access middleware decorator
+  - Login attempt rate-limiting (in-memory, per-IP)
 """
 
 import os
-import jwt
 import datetime
 from functools import wraps
 from collections import defaultdict
@@ -15,8 +15,10 @@ from collections import defaultdict
 import bcrypt
 from flask import request, jsonify, current_app, g
 
+from utils.supabase_auth import supabase_get_user
+
 # ---------------------------------------------------------------------------
-# Password helpers
+# Password helpers (kept for seed_admin and legacy compatibility)
 # ---------------------------------------------------------------------------
 
 def hash_password(plain_text: str) -> str:
@@ -32,36 +34,6 @@ def verify_password(plain_text: str, password_hash: str) -> bool:
         plain_text.encode("utf-8"),
         password_hash.encode("utf-8"),
     )
-
-
-# ---------------------------------------------------------------------------
-# JWT helpers
-# ---------------------------------------------------------------------------
-
-def generate_token(user_id: int, role: str) -> str:
-    """
-    Create a signed JWT containing user_id and role.
-    Expiry: JWT_EXPIRY_HOURS (env) or 24 h default.
-    """
-    secret = current_app.config["JWT_SECRET_KEY"]
-    expiry_hours = int(os.getenv("JWT_EXPIRY_HOURS", 24))
-
-    payload = {
-        "sub": user_id,
-        "role": role,
-        "iat": datetime.datetime.utcnow(),
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=expiry_hours),
-    }
-    return jwt.encode(payload, secret, algorithm="HS256")
-
-
-def decode_token(token: str) -> dict:
-    """
-    Decode and validate a JWT.
-    Returns the payload dict, or raises jwt.ExpiredSignatureError / jwt.InvalidTokenError.
-    """
-    secret = current_app.config["JWT_SECRET_KEY"]
-    return jwt.decode(token, secret, algorithms=["HS256"])
 
 
 # ---------------------------------------------------------------------------
@@ -113,13 +85,60 @@ def reset_attempts(ip: str):
 
 
 # ---------------------------------------------------------------------------
-# JWT Authentication decorator
+# Supabase user → local User sync
+# ---------------------------------------------------------------------------
+
+def _sync_local_user(supabase_user: dict) -> int:
+    """
+    Ensure a local SQLite User record exists for this Supabase user.
+    Returns the local integer user_id for FK compatibility.
+    """
+    from models.user_model import User
+    from utils.db import db
+
+    supabase_id = supabase_user.get("id", "")
+    email = supabase_user.get("email", "")
+    name = supabase_user.get("name", email)
+    role = supabase_user.get("role", "doctor")
+
+    # Look up by supabase_id first
+    local_user = User.query.filter_by(supabase_id=supabase_id).first()
+    if local_user:
+        # Update role if changed
+        if local_user.role != role:
+            local_user.role = role
+            db.session.commit()
+        return local_user.user_id
+
+    # Look up by username (email) as fallback
+    local_user = User.query.filter_by(username=email).first()
+    if local_user:
+        local_user.supabase_id = supabase_id
+        if local_user.role != role:
+            local_user.role = role
+        db.session.commit()
+        return local_user.user_id
+
+    # Create new local user
+    new_user = User(
+        username=name if name else email,
+        password_hash="supabase-managed",
+        role=role,
+        supabase_id=supabase_id,
+    )
+    db.session.add(new_user)
+    db.session.commit()
+    return new_user.user_id
+
+
+# ---------------------------------------------------------------------------
+# JWT Authentication decorator (Supabase-backed)
 # ---------------------------------------------------------------------------
 
 def jwt_required(f):
     """
-    Decorator that validates the Bearer JWT in the Authorization header.
-    On success, sets g.current_user = {"id": ..., "role": ...}.
+    Decorator that validates the Bearer JWT via Supabase's /auth/v1/user
+    endpoint.  On success, sets g.current_user = {"id": <local_int>, "role": ...}.
     """
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -128,13 +147,22 @@ def jwt_required(f):
             return jsonify({"error": "Missing or invalid Authorization header."}), 401
 
         token = auth_header.split(" ", 1)[1]
-        try:
-            payload = decode_token(token)
-            g.current_user = {"id": payload["sub"], "role": payload["role"]}
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Token has expired."}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({"error": "Invalid token."}), 401
+
+        # Validate with Supabase
+        supabase_user = supabase_get_user(token)
+        if not supabase_user:
+            return jsonify({"error": "Invalid or expired token."}), 401
+
+        # Sync to local DB and get integer user_id
+        local_user_id = _sync_local_user(supabase_user)
+
+        g.current_user = {
+            "id": local_user_id,
+            "role": supabase_user.get("role", "doctor"),
+            "email": supabase_user.get("email", ""),
+            "name": supabase_user.get("name", ""),
+        }
+        g.access_token = token
 
         return f(*args, **kwargs)
     return decorated
@@ -166,3 +194,28 @@ def roles_required(*allowed_roles):
             return f(*args, **kwargs)
         return decorated
     return decorator
+
+
+# ---------------------------------------------------------------------------
+# Legacy JWT helpers (kept for backward compatibility but no longer primary)
+# ---------------------------------------------------------------------------
+
+def generate_token(user_id: int, role: str) -> str:
+    """Create a signed JWT (legacy — Supabase tokens are now primary)."""
+    import jwt as pyjwt
+    secret = current_app.config["JWT_SECRET_KEY"]
+    expiry_hours = int(os.getenv("JWT_EXPIRY_HOURS", 24))
+    payload = {
+        "sub": user_id,
+        "role": role,
+        "iat": datetime.datetime.utcnow(),
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=expiry_hours),
+    }
+    return pyjwt.encode(payload, secret, algorithm="HS256")
+
+
+def decode_token(token: str) -> dict:
+    """Decode a legacy JWT (fallback)."""
+    import jwt as pyjwt
+    secret = current_app.config["JWT_SECRET_KEY"]
+    return pyjwt.decode(token, secret, algorithms=["HS256"])

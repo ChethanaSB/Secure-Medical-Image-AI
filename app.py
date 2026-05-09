@@ -24,7 +24,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 
 # Load .env before anything reads os.getenv
-load_dotenv()
+load_dotenv(override=True)
 
 
 def create_app() -> Flask:
@@ -109,30 +109,19 @@ def create_app() -> Flask:
 # ------------------------------------------------------------------
 def seed_admin(app: Flask):
     """
-    Create a default 'admin' user if no admin exists.
-    Credentials are read from ADMIN_USERNAME / ADMIN_PASSWORD env vars
-    (defaults: admin / Admin@1234).
+    With Supabase auth, user registration is handled externally.
+    This function now only prints a reminder if no local admin user exists.
+    Local user records are auto-created when users first log in via Supabase.
     """
     from models.user_model import User
-    from utils.db import db
-    from utils.security import hash_password
 
     with app.app_context():
-        admin_username = os.getenv("ADMIN_USERNAME", "admin")
-        admin_password = os.getenv("ADMIN_PASSWORD", "Admin@1234")
-
-        existing = User.query.filter_by(username=admin_username).first()
+        existing = User.query.filter_by(role="admin").first()
         if not existing:
-            admin = User(
-                username=admin_username,
-                password_hash=hash_password(admin_password),
-                role="admin",
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print(f"[SEED] Default admin user '{admin_username}' created.")
+            print("[SEED] No local admin user yet. Register an admin via the web UI")
+            print("       and they will be auto-synced on first Supabase login.")
         else:
-            print(f"[SEED] Admin user '{admin_username}' already exists – skipping.")
+            print(f"[SEED] Admin user '{existing.username}' exists locally.")
 
 
 # ------------------------------------------------------------------
