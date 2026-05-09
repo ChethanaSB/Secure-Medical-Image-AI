@@ -67,6 +67,16 @@ async function loadPatients() {
     useManualPid = true;
     hint.textContent = 'Patient API unavailable. Enter ID manually.';
   }
+
+  // Always attach manual input listener
+  const manualInput = document.getElementById('patient-id-manual');
+  if (manualInput) {
+    manualInput.addEventListener('input', () => {
+      const ok = manualInput.value.trim() !== '';
+      if (selectedFile && ok) document.getElementById('upload-btn').disabled = false;
+      else document.getElementById('upload-btn').disabled = true;
+    });
+  }
 }
 
 /* ── Drop zone ─────────────────────────────────────────── */
