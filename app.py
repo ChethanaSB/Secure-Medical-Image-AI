@@ -125,22 +125,33 @@ def create_app() -> Flask:
 # ------------------------------------------------------------------
 # Seed a default admin user so the system is usable out of the box
 # ------------------------------------------------------------------
-def seed_admin(app: Flask):
+def seed_database(app: Flask):
     """
-    With Supabase auth, user registration is handled externally.
-    This function now only prints a reminder if no local admin user exists.
-    Local user records are auto-created when users first log in via Supabase.
+    Seeds the database with required dummy data on startup.
     """
     from models.user_model import User
+    from models.patient_model import Patient
+    from utils.db import db
+    from datetime import date
 
     with app.app_context():
-        existing = User.query.filter_by(role="admin").first()
-        if not existing:
+        # Admin check
+        existing_admin = User.query.filter_by(role="admin").first()
+        if not existing_admin:
             print("[SEED] No local admin user yet. Register an admin via the web UI")
             print("       and they will be auto-synced on first Supabase login.")
         else:
-            print(f"[SEED] Admin user '{existing.username}' exists locally.")
-
+            print(f"[SEED] Admin user '{existing_admin.username}' exists locally.")
+        
+        # Patient seed
+        if not Patient.query.first():
+            print("[SEED] Adding dummy patients for testing...")
+            p1 = Patient(name="John Doe", dob=date(1985, 4, 12), gender="male", contact_number="555-0101")
+            p2 = Patient(name="Jane Smith", dob=date(1992, 8, 23), gender="female", contact_number="555-0202")
+            p3 = Patient(name="Robert Johnson", dob=date(1978, 11, 5), gender="male", contact_number="555-0303")
+            db.session.add_all([p1, p2, p3])
+            db.session.commit()
+            print("[SEED] 3 dummy patients added successfully.")
 
 # ------------------------------------------------------------------
 # Entry point / Gunicorn integration
@@ -148,9 +159,13 @@ def seed_admin(app: Flask):
 # This global 'app' object is used by gunicorn (e.g. gunicorn app:app)
 app = create_app()
 
-if __name__ == "__main__":
-    seed_admin(app)
+# Run database seed on startup (for both local and Render environments)
+try:
+    seed_database(app)
+except Exception as e:
+    print(f"[SEED] Error seeding database: {e}")
 
+if __name__ == "__main__":
     debug_mode = os.getenv("FLASK_DEBUG", "true").lower() == "true"
     port = int(os.getenv("PORT", 5000))
 
