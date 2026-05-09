@@ -83,6 +83,24 @@ def create_app() -> Flask:
         return jsonify({"status": "ok", "service": "Secure Medical Image API"}), 200
 
     # ------------------------------------------------------------------
+    # Serve Frontend Static Files
+    # ------------------------------------------------------------------
+    from flask import send_from_directory
+
+    @app.route("/")
+    def serve_index():
+        return send_from_directory("frontend", "index.html")
+
+    @app.route("/<path:path>")
+    def serve_static(path):
+        import os
+        # If the path exists in the frontend folder, serve it
+        if os.path.exists(os.path.join("frontend", path)):
+            return send_from_directory("frontend", path)
+        # Otherwise, fall back to index.html (useful for SPA routing if needed)
+        return send_from_directory("frontend", "index.html")
+
+    # ------------------------------------------------------------------
     # Global error handlers
     # ------------------------------------------------------------------
     @app.errorhandler(404)

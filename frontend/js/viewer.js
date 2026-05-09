@@ -17,7 +17,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 /* ── Auth ──────────────────────────────────────────────── */
 const TOKEN = localStorage.getItem('jwt_token');
 const USER  = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; } })();
-const API   = 'http://localhost:5000';
+const API   = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:5000' : '';
 
 if (!TOKEN) window.location.href = 'index.html';
 
