@@ -10,11 +10,13 @@ document.addEventListener('DOMContentLoaded', () => {
 let selectedFile  = null;
 let useManualPid  = false;
 
-/* ── Admin-only UI ─────────────────────────────────────── */
+/* ── Admin-only & Doctor UI ────────────────────────────── */
 function revealAdminLinks() {
   const u = getUser();
   if (u.role === 'admin') {
     document.getElementById('nav-dashboard-link')?.classList.remove('hidden');
+  }
+  if (u.role === 'admin' || u.role === 'doctor') {
     const addLink = document.getElementById('add-patient-link');
     if (addLink) addLink.style.display = '';
   }
@@ -41,18 +43,16 @@ async function loadPatients() {
       fallback.classList.remove('hidden');
       useManualPid = true;
       hint.textContent = 'No patients exist yet. Enter the patient ID manually.';
-      return;
+    } else {
+      sel.innerHTML = '<option value="">Select a patient…</option>';
+      patients.forEach(p => {
+        const opt   = document.createElement('option');
+        opt.value   = p.patient_id;
+        opt.textContent = `#${p.patient_id} — ${p.name} (${p.gender || '?'})`;
+        sel.appendChild(opt);
+      });
+      hint.textContent = `${patients.length} patient(s) loaded. Select one above.`;
     }
-
-    sel.innerHTML = '<option value="">Select a patient…</option>';
-    patients.forEach(p => {
-      const opt   = document.createElement('option');
-      opt.value   = p.patient_id;
-      opt.textContent = `#${p.patient_id} — ${p.name} (${p.gender || '?'})`;
-      sel.appendChild(opt);
-    });
-
-    hint.textContent = `${patients.length} patient(s) loaded. Select one above.`;
 
     sel.addEventListener('change', () => {
       const ok = sel.value !== '';
@@ -76,6 +76,23 @@ async function loadPatients() {
       if (selectedFile && ok) document.getElementById('upload-btn').disabled = false;
       else document.getElementById('upload-btn').disabled = true;
     });
+  }
+
+  // Auto-select patient from query parameter if present (e.g. redirected from patient-new.html)
+  const urlParams = new URLSearchParams(window.location.search);
+  const newPatId = urlParams.get('new_patient_id');
+  if (newPatId) {
+    if (!useManualPid) {
+      sel.value = newPatId;
+      const ok = sel.value !== '';
+      if (selectedFile && ok) document.getElementById('upload-btn').disabled = false;
+    } else {
+      if (manualInput) {
+        manualInput.value = newPatId;
+        const ok = manualInput.value.trim() !== '';
+        if (selectedFile && ok) document.getElementById('upload-btn').disabled = false;
+      }
+    }
   }
 }
 

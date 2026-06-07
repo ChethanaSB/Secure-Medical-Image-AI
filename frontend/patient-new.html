@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedScan AI — New Patient</title>
+  <meta name="description" content="Register a new patient in the MedScan AI database.">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body class="bg-grid page-wrap">
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-brand">
+      <div class="nav-icon">🔬</div>
+      <div>
+        <div class="nav-title">MedScan AI</div>
+        <div class="nav-subtitle">Medical Imaging</div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <a href="upload.html" class="btn btn-secondary btn-sm">📁 Upload</a>
+      <a id="nav-dashboard-link" href="dashboard.html" class="btn btn-ghost btn-sm hidden">📊 Dashboard</a>
+      <div class="nav-user">
+        <div class="nav-avatar" id="nav-avatar">?</div>
+        <div>
+          <div class="nav-user-name" id="nav-username">—</div>
+          <div class="nav-user-role" id="nav-role">—</div>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <!-- Toast container -->
+  <div id="toast-host"></div>
+
+  <div class="page-inner" style="max-width: 540px;">
+
+    <h1 class="page-heading anim-up">Register New Patient</h1>
+    <p class="page-sub anim-up" style="animation-delay:.04s;">
+      Create a patient record. The patient ID generated will be used for file encryption and storage.
+    </p>
+
+    <!-- System alert -->
+    <div id="form-alert" class="alert hidden" style="margin-bottom:16px;"></div>
+
+    <!-- Form card -->
+    <div class="card anim-up" style="animation-delay:.08s;">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="card-title-dot"></span>
+          Patient Demographics
+        </div>
+      </div>
+      <div class="card-body">
+        <form id="new-patient-form" onsubmit="submitNewPatient(event)">
+          <!-- Full Name -->
+          <div class="form-group">
+            <label class="form-label" for="patient-name">Full Name</label>
+            <input type="text" id="patient-name" class="form-input" required
+                   placeholder="e.g. Eleanor Vance" max="120">
+          </div>
+
+          <!-- Date of Birth -->
+          <div class="form-group">
+            <label class="form-label" for="patient-dob">Date of Birth</label>
+            <input type="date" id="patient-dob" class="form-input" required>
+          </div>
+
+          <!-- Gender -->
+          <div class="form-group">
+            <label class="form-label" for="patient-gender">Gender</label>
+            <select id="patient-gender" class="form-input" required>
+              <option value="" disabled selected>Select gender…</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <!-- Contact Number -->
+          <div class="form-group">
+            <label class="form-label" for="patient-contact">Contact Number (Optional)</label>
+            <input type="text" id="patient-contact" class="form-input"
+                   placeholder="e.g. +1 (555) 019-2834" max="20">
+            <span class="form-hint">Numbers, spaces, and standard symbols only.</span>
+          </div>
+
+          <div class="row gap-8" style="margin-top: 24px; justify-content: flex-end;">
+            <a href="upload.html" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" id="save-btn">
+              <span id="save-btn-text">Create Patient</span>
+              <span id="save-spinner" class="spinner hidden"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/patient-new.js"></script>
+</body>
+</html>
