@@ -22,6 +22,83 @@ function revealAdminLinks() {
   }
 }
 
+/* ── Inline New Patient Form ───────────────────────────── */
+window.toggleNewPatientForm = function () {
+  const form = document.getElementById('new-patient-inline');
+  const btn  = document.getElementById('toggle-new-patient-btn');
+  const open = form.style.display === 'none';
+  form.style.display = open ? 'block' : 'none';
+  btn.textContent = open ? '✕ Cancel' : '+ Add New Patient';
+  if (open) document.getElementById('np-name').focus();
+};
+
+window.submitInlinePatient = async function () {
+  const name    = document.getElementById('np-name').value.trim();
+  const dob     = document.getElementById('np-dob').value.trim();
+  const gender  = document.getElementById('np-gender').value;
+  const contact = document.getElementById('np-contact').value.trim();
+  const alertEl = document.getElementById('inline-patient-alert');
+
+  const showInlineAlert = (msg) => {
+    alertEl.className = 'alert alert-danger';
+    alertEl.innerHTML = `<span>⚠</span><span>${msg}</span>`;
+    alertEl.classList.remove('hidden');
+  };
+
+  alertEl.classList.add('hidden');
+
+  if (!name)   { showInlineAlert('Full name is required.'); return; }
+  if (!dob)    { showInlineAlert('Date of birth is required.'); return; }
+  if (!gender) { showInlineAlert('Please select a gender.'); return; }
+
+  // Loading state
+  const btn = document.getElementById('create-patient-btn');
+  document.getElementById('create-patient-text').textContent = 'Creating…';
+  document.getElementById('create-patient-spinner').classList.remove('hidden');
+  btn.disabled = true;
+
+  try {
+    const res  = await apiPost('/patients', { name, dob, gender, contact_number: contact || null });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showInlineAlert(data.error || 'Failed to create patient.');
+      return;
+    }
+
+    // Add new patient to dropdown and auto-select
+    const p   = data.patient;
+    const sel = document.getElementById('patient-select');
+    const opt = document.createElement('option');
+    opt.value       = p.patient_id;
+    opt.textContent = `#${p.patient_id} — ${p.name} (${p.gender || '?'})`;
+    sel.appendChild(opt);
+    sel.value = p.patient_id;
+    document.getElementById('patient-hint').textContent =
+      `✓ Patient "${p.name}" created and selected.`;
+
+    // Enable upload if file already selected
+    if (selectedFile) document.getElementById('upload-btn').disabled = false;
+
+    // Reset and close the inline form
+    document.getElementById('np-name').value    = '';
+    document.getElementById('np-dob').value     = '';
+    document.getElementById('np-gender').value  = '';
+    document.getElementById('np-contact').value = '';
+    alertEl.classList.add('hidden');
+    document.getElementById('new-patient-inline').style.display = 'none';
+    document.getElementById('toggle-new-patient-btn').textContent = '+ Add New Patient';
+
+  } catch {
+    showInlineAlert('Network error. Please try again.');
+  } finally {
+    document.getElementById('create-patient-text').textContent = 'Create Patient';
+    document.getElementById('create-patient-spinner').classList.add('hidden');
+    btn.disabled = false;
+  }
+};
+
+
 /* ── Patient dropdown ──────────────────────────────────── */
 async function loadPatients() {
   const sel      = document.getElementById('patient-select');
