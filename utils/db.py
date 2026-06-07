@@ -21,34 +21,48 @@ def init_db(app):
     """
     db.init_app(app)
     with app.app_context():
-        db.create_all()
-        print("[DB] Tables created / verified successfully.")
+        try:
+            db.create_all()
+            print("[DB] Tables created / verified successfully.")
 
-        # ── Migrate: add supabase_id column if missing (SQLite) ──────────
-        _ensure_supabase_id_column(app)
+            # ── Migrate: add supabase_id column if missing (SQLite only) ─
+            _ensure_supabase_id_column(app)
+        except Exception as exc:
+            log.error(
+                "[DB] Could not connect to database on startup: %s\n"
+                "     Make sure DATABASE_URL is set correctly in Render "
+                "Environment Variables and that the Supabase Session Pooler "
+                "URL is used (IPv4 compatible, port 5432 via pooler).",
+                exc,
+            )
 
 
 def _ensure_supabase_id_column(app):
-    """Add 'supabase_id' column to 'user' table if it doesn't exist yet."""
+    """Add 'supabase_id' column to 'users' table if it doesn't exist yet.
+    Uses SQLAlchemy inspect() so it works on both SQLite and PostgreSQL.
+    """
     try:
-        from sqlalchemy import text
-        with db.engine.connect() as conn:
-            # Check if column exists
-            result = conn.execute(text("PRAGMA table_info(user)"))
-            columns = [row[1] for row in result.fetchall()]
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        # db.create_all() already handles column creation on PostgreSQL,
+        # so this migration is only needed for existing SQLite databases.
+        dialect = db.engine.dialect.name  # 'sqlite' or 'postgresql'
+        if dialect != "sqlite":
+            print("[DB] Skipping SQLite migration on PostgreSQL — db.create_all() handles schema.")
+            return
 
-            if "supabase_id" not in columns:
-                # SQLite doesn't support UNIQUE in ALTER TABLE ADD COLUMN
+        columns = [col["name"] for col in inspector.get_columns("users")]
+        if "supabase_id" not in columns:
+            with db.engine.connect() as conn:
                 conn.execute(text(
-                    "ALTER TABLE user ADD COLUMN supabase_id VARCHAR(255)"
+                    "ALTER TABLE users ADD COLUMN supabase_id VARCHAR(255)"
                 ))
-                # Create unique index separately
                 conn.execute(text(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_user_supabase_id ON user(supabase_id)"
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_supabase_id ON users(supabase_id)"
                 ))
                 conn.commit()
-                print("[DB] Added 'supabase_id' column to user table.")
-            else:
-                print("[DB] 'supabase_id' column already exists.")
+            print("[DB] Added 'supabase_id' column to users table.")
+        else:
+            print("[DB] 'supabase_id' column already exists.")
     except Exception as exc:
         log.warning("Could not check/add supabase_id column: %s", exc)
